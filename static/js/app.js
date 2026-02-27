@@ -71,6 +71,7 @@ ws.on('model_loaded', ({ path }) => {
   $('btn-generate').disabled = false;
   $('btn-generate').title = '';
   dismissError();
+  scheduleTokenize();
 });
 
 ws.on('model_unloaded', () => {
@@ -330,6 +331,7 @@ function syncConfigFromUI() {
     height:          parseInt($('input-height').value),
     model_path:      $('input-model').value.trim(),
     scheduler:       $('input-scheduler').value,
+    token_masks:     _getActiveTokenMasks(),
   };
 }
 
@@ -546,6 +548,25 @@ async function applyPreset(name) {
       }
     }
 
+    // 4. Restore token masks
+    _clearAllTokenMasks();
+    for (const tm of (cfg.token_masks ?? [])) {
+      const id = 'tok_' + tm.token_index;
+      _tokenEntries[id] = {
+        token_index: tm.token_index,
+        text:        `token_${tm.token_index}`,
+        intensity:   tm.intensity ?? 0.5,
+        active:      true,
+      };
+      if (tm.mask_b64) {
+        await canvas.setMaskFromB64(id, tm.mask_b64);
+      }
+    }
+    if ((cfg.token_masks ?? []).length > 0) {
+      _renderTokenMaskCards();
+      scheduleTokenize();  // re-tokenize para obtener textos reales
+    }
+
     showSuccess(`Preset cargado: "${name}"`);
   } catch (err) {
     showError('Error loading preset: ' + err.message);
@@ -565,6 +586,202 @@ async function confirmDeletePreset(name, itemEl) {
 }
 
 on('btn-save-preset', 'click', savePreset);
+
+// ── Attention Masks — Token UI ────────────────────────────────────────────────
+
+// token_id ('tok_N') → { token_index, text, intensity, active }
+const _tokenEntries = {};
+let _currentTokenId  = null;
+let _tokenizeTimer   = null;
+
+function scheduleTokenize() {
+  clearTimeout(_tokenizeTimer);
+  _tokenizeTimer = setTimeout(_doTokenize, 500);
+}
+
+async function _doTokenize() {
+  const prompt    = $('input-prompt').value.trim();
+  const chipsWrap = $('token-chips-wrap');
+  if (!prompt || !state.modelLoaded) {
+    chipsWrap.innerHTML = '<div class="attn-empty">Load a model and type a prompt to see tokens.</div>';
+    return;
+  }
+  try {
+    const data = await fetch('/tokenize', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ prompt }),
+    }).then(r => r.json());
+
+    if (data.error || !data.tokens?.length) {
+      chipsWrap.innerHTML = '<div class="attn-empty">Could not tokenize prompt.</div>';
+      return;
+    }
+    _renderTokenChips(data.tokens);
+  } catch { /* server not ready */ }
+}
+
+function _renderTokenChips(tokens) {
+  const visible = tokens.filter(t => !t.special);
+  const wrap    = $('token-chips-wrap');
+  wrap.innerHTML = '';
+  if (!visible.length) {
+    wrap.innerHTML = '<div class="attn-empty">No tokens found.</div>';
+    return;
+  }
+  for (const tok of visible) {
+    const chip = document.createElement('button');
+    chip.className           = 'token-chip';
+    chip.dataset.tokenIndex  = tok.index;
+    chip.textContent         = tok.text;
+    const id = 'tok_' + tok.index;
+    if (_tokenEntries[id]) chip.classList.add('has-mask');
+    chip.addEventListener('click', () => _activateTokenCanvas(tok));
+    wrap.appendChild(chip);
+  }
+  // Actualizar texto de cards existentes con texto real del token
+  for (const [id, entry] of Object.entries(_tokenEntries)) {
+    const chip = document.querySelector(`.token-chip[data-token-index="${entry.token_index}"]`);
+    if (chip && entry.text.startsWith('token_')) {
+      entry.text = chip.textContent;
+      const nameEl = document.querySelector(`#tmc-${id} .tmc-token-text`);
+      if (nameEl) nameEl.textContent = `"${entry.text}"`;
+    }
+  }
+}
+
+function _activateTokenCanvas(tok) {
+  const id = 'tok_' + tok.index;
+  _currentTokenId = id;
+
+  // Desactivar cualquier región en edición
+  if (canvas.activeRegionId && !canvas.activeRegionId.startsWith('tok_')) {
+    canvas.deactivate();
+    document.dispatchEvent(new CustomEvent('canvas:done'));
+  }
+
+  canvas.activateForRegion(id);
+  const lbl = $('canvas-edit-label');
+  if (lbl) lbl.textContent = `Token: "${tok.text}"`;
+
+  // Resaltar chip seleccionado
+  document.querySelectorAll('.token-chip').forEach(c => {
+    c.classList.toggle('selected', parseInt(c.dataset.tokenIndex) === tok.index);
+  });
+}
+
+// Cuando el canvas termina (botón Done) — guardar máscara del token activo
+document.addEventListener('canvas:done', () => {
+  if (!_currentTokenId) return;
+  const tokenIndex = parseInt(_currentTokenId.replace('tok_', ''));
+  const chip = document.querySelector(`.token-chip[data-token-index="${tokenIndex}"]`);
+  const text = chip ? chip.textContent : `token_${tokenIndex}`;
+
+  if (!_tokenEntries[_currentTokenId]) {
+    _tokenEntries[_currentTokenId] = { token_index: tokenIndex, text, intensity: 0.5, active: true };
+  }
+  _currentTokenId = null;
+
+  // Desmarcar chips
+  document.querySelectorAll('.token-chip').forEach(c => c.classList.remove('selected'));
+
+  _renderTokenMaskCards();
+});
+
+function _renderTokenMaskCards() {
+  const listEl = $('token-masks-list');
+  listEl.innerHTML = '';
+  for (const [id, entry] of Object.entries(_tokenEntries)) {
+    _appendTokenMaskCard(listEl, id, entry);
+  }
+  // Actualizar estado has-mask en chips
+  document.querySelectorAll('.token-chip').forEach(chip => {
+    const id = 'tok_' + chip.dataset.tokenIndex;
+    chip.classList.toggle('has-mask', !!_tokenEntries[id]);
+  });
+}
+
+function _appendTokenMaskCard(listEl, id, entry) {
+  const maskB64 = canvas.getMaskB64(id);
+  const card    = document.createElement('div');
+  card.id        = 'tmc-' + id;
+  card.className = 'token-mask-card' + (entry.active ? '' : ' inactive');
+  card.innerHTML = `
+    <div class="tmc-header">
+      <label class="region-toggle" title="${entry.active ? 'Active' : 'Inactive'}">
+        <input type="checkbox" class="tmc-active" ${entry.active ? 'checked' : ''}>
+        <span class="region-toggle-track"></span>
+      </label>
+      <span class="tmc-token-text">"${_escHtml(entry.text)}"</span>
+      <span class="tmc-index">#${entry.token_index}</span>
+      <button class="btn-icon tmc-del" title="Remove mask">✕</button>
+    </div>
+    <div class="tmc-body">
+      <img class="tmc-thumb" src="data:image/png;base64,${maskB64}" alt="mask" title="Click to re-edit">
+      <div class="tmc-controls">
+        <label>Intensity</label>
+        <div class="region-intensity-row">
+          <input class="tmc-intensity" type="range" min="0" max="1" step="0.05" value="${entry.intensity}">
+          <span class="tmc-intensity-val">${entry.intensity.toFixed(2)}</span>
+        </div>
+      </div>
+    </div>
+  `;
+
+  const q = sel => card.querySelector(sel);
+
+  q('.tmc-active').addEventListener('change', e => {
+    entry.active = e.target.checked;
+    card.classList.toggle('inactive', !entry.active);
+  });
+
+  const slider = q('.tmc-intensity');
+  const valEl  = q('.tmc-intensity-val');
+  slider.addEventListener('input', e => {
+    entry.intensity = parseFloat(e.target.value);
+    valEl.textContent = entry.intensity.toFixed(2);
+  });
+
+  q('.tmc-del').addEventListener('click', () => {
+    delete _tokenEntries[id];
+    canvas.removeMask(id);
+    card.remove();
+    const chip = document.querySelector(`.token-chip[data-token-index="${entry.token_index}"]`);
+    if (chip) chip.classList.remove('has-mask');
+  });
+
+  q('.tmc-thumb').addEventListener('click', () => {
+    _activateTokenCanvas({ index: entry.token_index, text: entry.text });
+  });
+
+  listEl.appendChild(card);
+}
+
+function _getActiveTokenMasks() {
+  return Object.entries(_tokenEntries)
+    .filter(([, e]) => e.active)
+    .map(([id, e]) => ({
+      token_index: e.token_index,
+      mask_b64:    canvas.getMaskB64(id),
+      intensity:   e.intensity,
+    }));
+}
+
+function _clearAllTokenMasks() {
+  Object.keys(_tokenEntries).forEach(id => canvas.removeMask(id));
+  Object.keys(_tokenEntries).forEach(k => delete _tokenEntries[k]);
+  $('token-masks-list').innerHTML = '';
+  document.querySelectorAll('.token-chip').forEach(c => c.classList.remove('has-mask', 'selected'));
+}
+
+function _escHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+// Conectar prompt input → tokenize con debounce
+$('input-prompt').addEventListener('input', scheduleTokenize);
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 loadConfigFromServer();

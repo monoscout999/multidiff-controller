@@ -974,3 +974,132 @@ input[type="range"]::-webkit-slider-thumb {
   font-variant-numeric: tabular-nums;
 }
 
+/* ── Canvas edit label ─────────────────────────────────────────────────────── */
+.canvas-edit-label {
+  font-size: 11px;
+  color: var(--accent);
+  font-style: italic;
+  margin-left: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 180px;
+}
+
+/* ── Attention Masks — token chips ─────────────────────────────────────────── */
+.attn-empty {
+  font-size: 11px;
+  color: var(--text-xdim);
+  text-align: center;
+  padding: 10px 0 6px;
+}
+
+#token-chips-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 8px;
+  min-height: 28px;
+}
+
+.token-chip {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  border-radius: 3px;
+  padding: 2px 7px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.12s;
+  font-family: 'Courier New', monospace;
+  line-height: 1.5;
+}
+.token-chip:hover { background: var(--panel2); color: var(--text); border-color: var(--border2); }
+.token-chip.selected {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.token-chip.has-mask {
+  border-color: var(--warn);
+  color: var(--warn);
+}
+.token-chip.selected.has-mask {
+  background: #2a1800;
+  border-color: var(--warn);
+  color: var(--warn);
+}
+
+/* ── Attention Masks — token mask cards ─────────────────────────────────────── */
+.token-mask-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  margin-bottom: 6px;
+  overflow: hidden;
+}
+.token-mask-card.inactive { opacity: 0.45; }
+
+.tmc-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  background: var(--panel2);
+  border-bottom: 1px solid var(--border);
+}
+.tmc-token-text {
+  flex: 1;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: 'Courier New', monospace;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tmc-index {
+  font-size: 10px;
+  color: var(--text-xdim);
+  flex-shrink: 0;
+}
+
+.tmc-body {
+  display: flex;
+  gap: 8px;
+  padding: 8px;
+  align-items: flex-start;
+}
+.tmc-thumb {
+  width: 48px;
+  height: 48px;
+  object-fit: cover;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: #333;
+  image-rendering: pixelated;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+.tmc-controls {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.tmc-controls label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.tmc-intensity-val {
+  min-width: 28px;
+  text-align: right;
+  font-size: 11px;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+

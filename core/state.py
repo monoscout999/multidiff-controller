@@ -4,6 +4,12 @@ import threading
 import torch
 
 
+class TokenMask(BaseModel):
+    token_index: int
+    mask_b64: Optional[str] = None
+    intensity: float = 0.5
+
+
 class GenerationConfig(BaseModel):
     prompt: str = ""
     negative_prompt: str = ""
@@ -14,6 +20,7 @@ class GenerationConfig(BaseModel):
     height: int = 512
     model_path: str = "runwayml/stable-diffusion-v1-5"
     scheduler: str = "DPM++ 2M Karras"
+    token_masks: List[TokenMask] = []
 
 
 class Region(BaseModel):

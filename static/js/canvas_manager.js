@@ -60,7 +60,14 @@ export class CanvasManager {
     this.activeRegionId = null;
     this._canvas.classList.remove('active');
     document.getElementById('canvas-toolbar').classList.add('hidden');
+    const lbl = document.getElementById('canvas-edit-label');
+    if (lbl) lbl.textContent = '';
     this._ctx.clearRect(0, 0, this._canvas.width, this._canvas.height);
+  }
+
+  /** Remove the stored mask for a given id (region or token). */
+  removeMask(id) {
+    delete this._masks[id];
   }
 
   /** Clear the mask of the active region. */

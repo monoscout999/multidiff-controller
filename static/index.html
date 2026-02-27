@@ -173,6 +173,7 @@
       <div id="canvas-toolbar" class="hidden">
         <button id="btn-tool-draw"  class="tool-btn active" title="Draw brush">✏ Draw</button>
         <button id="btn-tool-erase" class="tool-btn"        title="Erase">⌫ Erase</button>
+        <span id="canvas-edit-label" class="canvas-edit-label"></span>
         <div id="brush-size-wrap">
           <span>Size</span>
           <input type="range" id="brush-size" min="4" max="80" value="20">
@@ -193,7 +194,7 @@
       <div id="step-strip"></div>
     </div>
 
-    <!-- Right: Regions ───────────────────────────────────────────────────── -->
+    <!-- Right: Regions + Attention Masks ────────────────────────────────── -->
     <aside id="panel-regions">
       <div class="panel-header">
         <span>Regions</span>
@@ -202,6 +203,16 @@
       <div id="regions-list">
         <div class="regions-empty">No regions.<br>Add one to use MultiDiffusion.</div>
       </div>
+
+      <hr class="section-sep" style="margin-top:14px">
+
+      <div class="panel-header" style="margin-bottom:8px">
+        <span>Attention Masks</span>
+      </div>
+      <div id="token-chips-wrap">
+        <div class="attn-empty">Load a model and type a prompt to see tokens.</div>
+      </div>
+      <div id="token-masks-list"></div>
     </aside>
 
   </main>

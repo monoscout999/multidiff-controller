@@ -112,6 +112,45 @@ async def set_regions(regions: List[Region]):
     return {"ok": True}
 
 
+# ── Tokenize ───────────────────────────────────────────────────────────────
+
+class TokenizeRequest(BaseModel):
+    prompt: str
+
+
+@app.post("/tokenize")
+async def tokenize_prompt(body: TokenizeRequest):
+    """Tokeniza el prompt usando el tokenizer del modelo cargado."""
+    if not app_state.model_cache.is_loaded:
+        return {"tokens": [], "error": "no_model"}
+
+    pipe      = app_state.model_cache.pipe
+    tokenizer = getattr(pipe, "tokenizer", None)
+    if tokenizer is None:
+        return {"tokens": [], "error": "no_tokenizer"}
+
+    encoded = tokenizer(
+        body.prompt,
+        return_tensors="pt",
+        add_special_tokens=True,
+        max_length=tokenizer.model_max_length,
+        truncation=True,
+    )
+    input_ids  = encoded.input_ids[0].tolist()
+    all_special = set(tokenizer.all_special_ids)
+
+    tokens = [
+        {
+            "index":    idx,
+            "token_id": tid,
+            "text":     tokenizer.decode([tid]),
+            "special":  tid in all_special,
+        }
+        for idx, tid in enumerate(input_ids)
+    ]
+    return {"tokens": tokens}
+
+
 # ── Model management ───────────────────────────────────────────────────────────
 @app.get("/models/list")
 async def list_models():

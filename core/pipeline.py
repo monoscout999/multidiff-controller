@@ -80,6 +80,8 @@ class PipelineWorker(threading.Thread):
             self.on_step({"type": "error", "message": str(exc)})
         finally:
             self._running = False
+            if self._injector:
+                self._injector.stop()
             if self._panic_event.is_set():
                 self._unload_model(clear_cache=True)
             else:
@@ -117,6 +119,23 @@ class PipelineWorker(threading.Thread):
 
         self.on_step({"type": "status", "status": "generating"})
         self._injector = AttentionInjector(self._pipe.unet)
+
+        # Configurar inyección de atención si hay token masks activas
+        if cfg.token_masks:
+            for tm in cfg.token_masks:
+                if tm.mask_b64:
+                    import base64 as _b64
+                    import io as _io
+                    from PIL import Image as _Img
+                    raw     = _b64.b64decode(tm.mask_b64)
+                    img     = _Img.open(_io.BytesIO(raw)).convert("L")
+                    mask_np = np.array(img, dtype=np.float32) / 255.0
+                    self._injector.set_token_mask(tm.token_index, mask_np, tm.intensity)
+            self._injector.start("inject", gen_h=cfg.height, gen_w=cfg.width)
+            print(
+                f"[ATTN] inyección activa | {len(cfg.token_masks)} token mask(s)",
+                flush=True,
+            )
 
         # Seed
         seed = cfg.seed if cfg.seed >= 0 else int(time.time() * 1000) % (2**32)
@@ -211,6 +230,9 @@ class PipelineWorker(threading.Thread):
                 uncond, cond = noise_pred.chunk(2)
                 noise_pred = uncond + cfg.cfg_scale * (cond - uncond)
                 latents = scheduler.step(noise_pred, t, latents).prev_sample
+
+            # Avanzar step counter del injector
+            self._injector.advance_step()
 
             # Decode + broadcast
             preview = self._decode_latent(latents)
