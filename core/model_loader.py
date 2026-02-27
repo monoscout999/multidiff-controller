@@ -5,16 +5,29 @@ from diffusers import (
     StableDiffusionXLPipeline,
     DDIMScheduler,
     DPMSolverMultistepScheduler,
+    DPMSolverSDEScheduler,
     EulerDiscreteScheduler,
     EulerAncestralDiscreteScheduler,
 )
 
 
+# (scheduler_class, use_karras_sigmas)
 SCHEDULERS = {
-    "DDIM": DDIMScheduler,
-    "DPM++": DPMSolverMultistepScheduler,
-    "Euler": EulerDiscreteScheduler,
-    "EulerA": EulerAncestralDiscreteScheduler,
+    "DPM++ 2M":         (DPMSolverMultistepScheduler,   False),
+    "DPM++ 2M Karras":  (DPMSolverMultistepScheduler,   True),
+    "DPM++ SDE":        (DPMSolverSDEScheduler,          False),
+    "DPM++ SDE Karras": (DPMSolverSDEScheduler,          True),
+    "Euler":            (EulerDiscreteScheduler,          False),
+    "Euler Karras":     (EulerDiscreteScheduler,          True),
+    "Euler Ancestral":  (EulerAncestralDiscreteScheduler, False),
+    "DDIM":             (DDIMScheduler,                   False),
+}
+
+# Schedulers that accept use_karras_sigmas in from_config
+_KARRAS_SUPPORTED = {
+    DPMSolverMultistepScheduler,
+    DPMSolverSDEScheduler,
+    EulerDiscreteScheduler,
 }
 
 
@@ -78,8 +91,16 @@ def load_pipeline(model_path: str, scheduler_name: str = "DDIM"):
             requires_safety_checker=False,
         ).to(device)
 
-    sched_cls = SCHEDULERS.get(scheduler_name, DDIMScheduler)
-    pipe.scheduler = sched_cls.from_config(pipe.scheduler.config)
+    sched_cls, use_karras = SCHEDULERS.get(scheduler_name, (DDIMScheduler, False))
+    sched_config = dict(pipe.scheduler.config)
+    if use_karras and sched_cls in _KARRAS_SUPPORTED:
+        sched_config["use_karras_sigmas"] = True
+    pipe.scheduler = sched_cls.from_config(sched_config)
+    print(
+        f"[SCHEDULER] {scheduler_name} | karras={use_karras} | "
+        f"num_train_timesteps={pipe.scheduler.config.num_train_timesteps}",
+        flush=True,
+    )
 
     pipe.unet.eval()
     pipe.vae.eval()

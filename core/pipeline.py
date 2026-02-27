@@ -329,6 +329,7 @@ class PipelineWorker(threading.Thread):
             "width":           cfg.width,
             "height":          cfg.height,
             "model":           Path(cfg.model_path).name,
+            "scheduler":       cfg.scheduler,
             "timestamp":       ts,
         }
         (outputs_dir / f"{stem}.json").write_text(json.dumps(meta, indent=2))

@@ -18,7 +18,7 @@ from core.pipeline import PipelineWorker
 from core.model_loader import load_pipeline
 
 # ── Constants ──────────────────────────────────────────────────────────────────
-DEFAULT_MODELS_DIR = Path(r"C:\Users\aguse\Documents\ComfyUI\models\checkpoints")
+DEFAULT_MODELS_DIR = Path.home() / "models" / "checkpoints"
 DEBUG_MASKS_DIR    = Path("debug/masks")
 OUTPUTS_DIR        = Path("outputs")
 PRESETS_DIR        = Path("presets")

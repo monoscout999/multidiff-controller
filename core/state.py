@@ -13,7 +13,7 @@ class GenerationConfig(BaseModel):
     width: int = 512
     height: int = 512
     model_path: str = "runwayml/stable-diffusion-v1-5"
-    scheduler: str = "DDIM"
+    scheduler: str = "DPM++ 2M Karras"
 
 
 class Region(BaseModel):
