@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MultiDiff Controller</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+  <!-- ── Top Bar ──────────────────────────────────────────────────────────── -->
+  <header id="topbar">
+    <span class="app-title">MultiDiff</span>
+
+    <div class="topbar-status">
+      <span id="status-dot" class="idle"></span>
+      <span id="status-label">idle</span>
+      <div id="progress-wrap">
+        <div id="progress-bar-track"><div id="progress-bar"></div></div>
+        <span id="progress-text"></span>
+      </div>
+      <span id="seed-display"></span>
+    </div>
+
+    <!-- GPU / RAM stats — always visible -->
+    <div id="gpu-stats">
+      <span class="stat-block">
+        <span class="stat-lbl">VRAM</span>
+        <span id="stat-vram">— / — GB</span>
+      </span>
+      <span class="stat-sep">|</span>
+      <span class="stat-block">
+        <span class="stat-lbl">RAM</span>
+        <span id="stat-ram">— GB</span>
+      </span>
+    </div>
+
+    <div class="topbar-actions">
+      <button id="btn-gallery"  class="btn btn-secondary btn-sm">⊞ Gallery</button>
+      <button id="btn-resume"   class="btn btn-warn hidden">▶ Resume</button>
+      <button id="btn-generate" class="btn btn-primary" disabled title="Load a model first">▶ Generate</button>
+      <button id="btn-stop"     class="btn btn-secondary" disabled>■ Stop</button>
+      <button id="btn-panic"    class="btn btn-danger">⚡ Panic</button>
+    </div>
+  </header>
+
+  <!-- ── Error Banner ─────────────────────────────────────────────────────── -->
+  <div id="error-banner" class="hidden">
+    <span class="error-icon">⚠</span>
+    <span id="error-text"></span>
+    <button id="btn-dismiss-error" class="btn-icon" title="Dismiss">✕</button>
+  </div>
+
+  <!-- ── Main Layout ──────────────────────────────────────────────────────── -->
+  <main id="main-layout">
+
+    <!-- Left: Config ─────────────────────────────────────────────────────── -->
+    <aside id="panel-config">
+
+      <div class="field">
+        <label>Prompt</label>
+        <textarea id="input-prompt" rows="5" placeholder="Describe the image…"></textarea>
+      </div>
+
+      <div class="field">
+        <label>Negative</label>
+        <textarea id="input-negative" rows="2" placeholder="What to avoid…"></textarea>
+      </div>
+
+      <hr class="section-sep">
+
+      <div class="param-row">
+        <label>Steps</label>
+        <input type="range" id="input-steps" min="1" max="100" value="20">
+        <span class="val" id="val-steps">20</span>
+      </div>
+      <div class="param-row">
+        <label>CFG</label>
+        <input type="range" id="input-cfg" min="1" max="20" step="0.5" value="7.5">
+        <span class="val" id="val-cfg">7.5</span>
+      </div>
+      <div class="param-row">
+        <label>Seed</label>
+        <input type="number" id="input-seed" value="-1" min="-1">
+        <button id="btn-rand-seed" class="btn-icon" title="Random seed">⟳</button>
+      </div>
+
+      <hr class="section-sep">
+
+      <div class="param-row">
+        <label>Width</label>
+        <select id="input-width">
+          <option value="512" selected>512</option>
+          <option value="768">768</option>
+          <option value="1024">1024</option>
+        </select>
+      </div>
+      <div class="param-row">
+        <label>Height</label>
+        <select id="input-height">
+          <option value="512" selected>512</option>
+          <option value="768">768</option>
+          <option value="1024">1024</option>
+        </select>
+      </div>
+
+      <hr class="section-sep">
+
+      <div class="field model-section">
+        <label>
+          Model
+          <span id="model-loaded-badge" class="badge-loaded hidden">✓ loaded</span>
+        </label>
+        <!-- Library picker -->
+        <select id="model-picker">
+          <option value="">— browse library —</option>
+        </select>
+        <!-- Manual path or Hub ID -->
+        <input type="text" id="input-model"
+               value="runwayml/stable-diffusion-v1-5"
+               placeholder="Path or Hub ID"
+               style="margin-top:4px">
+        <div class="model-footer">
+          <button id="btn-load-model" class="btn btn-secondary btn-sm">⬇ Load Model</button>
+          <span id="model-status-text" class="model-status"></span>
+        </div>
+      </div>
+      <div class="param-row">
+        <label>Scheduler</label>
+        <select id="input-scheduler">
+          <option value="DDIM">DDIM</option>
+          <option value="DPM++">DPM++ 2M</option>
+          <option value="Euler">Euler</option>
+          <option value="EulerA">Euler A</option>
+        </select>
+      </div>
+
+      <div id="last-seed-info"></div>
+
+      <hr class="section-sep">
+
+      <!-- Presets -->
+      <div class="preset-section">
+        <div class="panel-header" style="margin-bottom:8px;margin-top:2px">
+          <span>Presets</span>
+        </div>
+        <div class="preset-save-row">
+          <input type="text" id="preset-name" placeholder="Preset name…">
+          <button id="btn-save-preset" class="btn btn-secondary btn-sm">Save</button>
+        </div>
+        <div id="preset-list"></div>
+      </div>
+    </aside>
+
+    <!-- Center: Viewer + Canvas ───────────────────────────────────────────── -->
+    <div id="panel-center">
+
+      <div id="viewer-wrap">
+        <img id="main-image" src="" alt="" style="display:none">
+        <canvas id="overlay-canvas"></canvas>
+
+        <div id="viewer-placeholder">
+          <span class="placeholder-icon">⬡</span>
+          <span class="placeholder-text">Press Generate to start</span>
+        </div>
+      </div>
+
+      <!-- Canvas drawing toolbar -->
+      <div id="canvas-toolbar" class="hidden">
+        <button id="btn-tool-draw"  class="tool-btn active" title="Draw brush">✏ Draw</button>
+        <button id="btn-tool-erase" class="tool-btn"        title="Erase">⌫ Erase</button>
+        <div id="brush-size-wrap">
+          <span>Size</span>
+          <input type="range" id="brush-size" min="4" max="80" value="20">
+          <span id="brush-size-val">20</span>
+        </div>
+        <div id="opacity-wrap">
+          <span>Opacity</span>
+          <input type="range" id="overlay-opacity" min="10" max="100" value="55">
+          <span id="overlay-opacity-val">55%</span>
+        </div>
+        <button id="btn-mask-clear" class="tool-btn" title="Clear mask">⊘</button>
+        <button id="btn-mask-fill"  class="tool-btn" title="Fill mask">■</button>
+        <div class="toolbar-spacer"></div>
+        <button id="btn-canvas-done" class="tool-btn" title="Done editing">✓ Done</button>
+      </div>
+
+      <!-- Step thumbnails strip -->
+      <div id="step-strip"></div>
+    </div>
+
+    <!-- Right: Regions ───────────────────────────────────────────────────── -->
+    <aside id="panel-regions">
+      <div class="panel-header">
+        <span>Regions</span>
+        <button id="btn-add-region" class="btn btn-ghost btn-sm">+ Add</button>
+      </div>
+      <div id="regions-list">
+        <div class="regions-empty">No regions.<br>Add one to use MultiDiffusion.</div>
+      </div>
+    </aside>
+
+  </main>
+
+  <!-- ── Gallery Modal ──────────────────────────────────────────────────── -->
+  <div id="gallery-modal" class="modal hidden">
+    <div id="gallery-backdrop" class="modal-backdrop"></div>
+    <div class="modal-box gallery-modal-box">
+      <div class="modal-header">
+        <span>Gallery</span>
+        <button id="btn-refresh-gallery" class="btn btn-ghost btn-sm" style="margin-right:auto;margin-left:10px">⟳ Refresh</button>
+        <button id="btn-close-gallery" class="btn-icon">✕</button>
+      </div>
+      <div class="gallery-layout">
+        <div id="gallery-grid"></div>
+        <div id="gallery-preview">
+          <div id="gallery-preview-empty">Select an image</div>
+          <img id="gallery-preview-img" src="" alt="" style="display:none">
+          <div id="gallery-preview-info"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Mask Preview Modal ──────────────────────────────────────────────── -->
+  <div id="mask-preview-modal" class="modal hidden">
+    <div id="modal-backdrop" class="modal-backdrop"></div>
+    <div class="modal-box">
+      <div class="modal-header">
+        <span id="modal-title">Mask Preview</span>
+        <button id="btn-close-modal" class="btn-icon">✕</button>
+      </div>
+      <div class="modal-body">
+        <img id="modal-mask-img" src="" alt="Mask preview">
+        <div id="modal-mask-stats" class="mask-stats"></div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/static/js/app.js"></script>
+</body>
+</html>

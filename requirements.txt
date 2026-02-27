@@ -1,0 +1,18 @@
+# FastAPI stack
+fastapi>=0.110.0
+uvicorn[standard]>=0.27.0
+python-multipart>=0.0.9
+
+# ML
+diffusers>=0.27.0
+transformers>=4.38.0
+accelerate>=0.27.0
+Pillow>=10.0.0
+numpy>=1.26.0
+
+# PyTorch — install separately depending on GPU:
+#   RTX 4060 Ti (cu124):  pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
+#   RTX 5070 Ti (cu128):  pip install torch torchvision --pre --index-url https://download.pytorch.org/whl/nightly/cu128
+
+pydantic>=2.0.0
+psutil>=5.9.0
